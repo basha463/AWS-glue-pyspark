@@ -1,0 +1,45 @@
+import sys
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+from awsgluedq.transforms import EvaluateDataQuality
+
+args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+job = Job(glueContext)
+job.init(args['JOB_NAME'], args)
+
+# Default ruleset used by all target nodes with data quality enabled
+DEFAULT_DATA_QUALITY_RULESET = """
+    Rules = [
+        ColumnCount > 0
+    ]
+"""
+
+# Script generated for node track
+track_node1751001446332 = glueContext.create_dynamic_frame.from_options(format_options={"quoteChar": "\"", "withHeader": True, "separator": ",", "optimizePerformance": False}, connection_type="s3", format="csv", connection_options={"paths": ["s3://spotify-dataengineeringproject-27-06-2025/staging/track.csv"], "recurse": True}, transformation_ctx="track_node1751001446332")
+
+# Script generated for node album
+album_node1751001444906 = glueContext.create_dynamic_frame.from_options(format_options={"quoteChar": "\"", "withHeader": True, "separator": ",", "optimizePerformance": False}, connection_type="s3", format="csv", connection_options={"paths": ["s3://spotify-dataengineeringproject-27-06-2025/staging/albums.csv"], "recurse": True}, transformation_ctx="album_node1751001444906")
+
+# Script generated for node artist
+artist_node1751001443965 = glueContext.create_dynamic_frame.from_options(format_options={"quoteChar": "\"", "withHeader": True, "separator": ",", "optimizePerformance": False}, connection_type="s3", format="csv", connection_options={"paths": ["s3://spotify-dataengineeringproject-27-06-2025/staging/artists.csv"], "recurse": True}, transformation_ctx="artist_node1751001443965")
+
+# Script generated for node artist and album 
+artistandalbum_node1751001640878 = Join.apply(frame1=artist_node1751001443965, frame2=album_node1751001444906, keys1=["id"], keys2=["artist_id"], transformation_ctx="artistandalbum_node1751001640878")
+
+# Script generated for node join with track 
+joinwithtrack_node1751001721724 = Join.apply(frame1=track_node1751001446332, frame2=artistandalbum_node1751001640878, keys1=["track_id"], keys2=["track_id"], transformation_ctx="joinwithtrack_node1751001721724")
+
+# Script generated for node Drop Fields
+DropFields_node1751001911290 = DropFields.apply(frame=joinwithtrack_node1751001721724, paths=["`.track_id`", "id"], transformation_ctx="DropFields_node1751001911290")
+
+# Script generated for node output
+EvaluateDataQuality().process_rows(frame=DropFields_node1751001911290, ruleset=DEFAULT_DATA_QUALITY_RULESET, publishing_options={"dataQualityEvaluationContext": "EvaluateDataQuality_node1751001880822", "enableDataQualityResultsPublishing": True}, additional_options={"dataQualityResultsPublishing.strategy": "BEST_EFFORT", "observations.scope": "ALL"})
+output_node1751001942857 = glueContext.write_dynamic_frame.from_options(frame=DropFields_node1751001911290, connection_type="s3", format="glueparquet", connection_options={"path": "s3://spotify-dataengineeringproject-27-06-2025/datawarehouse/", "partitionKeys": []}, format_options={"compression": "snappy"}, transformation_ctx="output_node1751001942857")
+
+job.commit()
